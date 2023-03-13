@@ -1,0 +1,236 @@
+INTRODUCTION
+-----------------------------------------
+
+This package allows access to Knowledge stream's data via Knowledge hub(KHub) API's. You can use this package to view KHub catalog, to determine the type
+of data you want to download. The catalog consists of various measure group data, dimensional data etc. Using this package's in-built functions, you can download
+the required datasets into a dataframe.
+
+INSTALLATION
+-----------------------------------------
+
+If you want to install it in your local computer:
+	- Put library code in a folder in your system
+	- Run this command  pip install --install-option="{FOLDER LOCATION}" o9knowledgehub
+	
+If you want to install in a tenant:
+
+	- Create a zip file of the folder containing the code.
+	- In the Designer tab in the tenant under rule click on Code Packages
+	- Click on the plus button, give it a package name and description, select the zip file from your computer and save.
+	
+	
+CLASSES AND METHODS
+-----------------------------------------
+
+	* You can import the library as 
+	
+		import o9knowledgehub
+	
+	* Once you import the library you can create a Knowledge Hub object. 
+	  You have to provide a valid API key as a parameter while creating the object.
+	  
+		khub = o9knowledgehub.o9KnowledgeHub('ApiKey vxhdfntu.uhvfahrcmkwhzfkvy4k3qsrf')
+		
+	* This library has three functions to download data from Knowledgehub server
+	 - get_catalog()
+	 - get_measuregrp()
+	 - get_dim()
+	
+	* get_catalog
+	
+		parameter   : filters (optional), caching (optional)
+		return type : A pandas DataFrame containng catalog data.
+		
+	* get_measuregrp
+	
+		parameter   : mgname, filters (optional), cols (optional), caching (optional)
+		return type : A pandas DataFrame containng measuregroup data.
+		
+	* get_dim
+	
+		parameter   : dname, filters (optional), caching (optional)
+		return type : A pandas DataFrame containing dimension data.
+		
+		
+	DATA-TYPES OF PARAMETERS
+	------------------------
+	
+	filters = dictionary where key is a string and value is list of string 
+	cols    = list of coloumn names (string)
+	mgname  = string
+	dname   = string
+	caching = boolean
+		
+		
+FILTERS
+--------------------------------------------
+
+There are two types of filters supported by the library.
+	- Global level filters.
+	- local level filters.
+	
+Once you apply a global filter filter value will be persist accross all the
+get_catalog and get_measuregrp method calls unless we apply a local filter.
+
+we can apply a global filter using "add_filter" method
+
+	* add_filter
+	
+		parameter   : country (optional), period (optional), category (optional)
+		return type : Does not return anything 
+
+- country filter will contain a dictionary where the key will be an attribute from Geo dimension and value will be a list of member of that attribute. 
+- category filter will contain a dictionary where the key will be an attribute from Catalog dimension and value will be a list of member of that attribute. 
+- period filter will contain a dictionary where the key will be an attribute from Time dimension and value will be a list two time dimesion value, where first one is start of the period and second one is the end of the period. 
+
+ex:
+	khub.add_filter(country = {'Continent':["Europe","North America"]},period = {'Year':['2010','2021']}, category = {'ContentCategory':["Economic"]})
+	
+	Here we have applied a global filter, from now on all the method calls will only download data from server where the data is from Europe or America withing the Year 2010 to 2021 and Only the Econimic data if 
+	it is grained at catalog. 
+	
+	Now, if you call method
+	cat_data = khub.get_catalog()
+	You will only download catalog data where contentcategory is "Economic" since we have a global filter on khub object.
+
+	If you call the method
+	Data = khub.get_measuregrp('RetailSalesMonthly')
+	We will get data from "RetailSalesMonthly" for the time period 2010 to 2021, for the countries in Europe and North America.
+	It will send api request to server in the format bellow -
+		{Web api ulr}/RetailSalesMonthly?size=100000&filters=[{"AttributeName" :"Continent","Values":["Europe","North America"], "DimensionName" : "Geo"},{"AttributeName":"Year","DateRanges":[{"op" : ">=", "value" : "2010"}, {"op" : "<=", "value" : "2021"}], "DimensionName" : "Time"}]
+	
+	
+Local level filters are filters that you can apply while calling get_catalog,get_measuregrp and get_dim methods
+Once we apply a local filter, it will override any global filters that may have been applied before. 
+
+Data Type of filters parameter is dictionary.
+The dictionary keys will be the name of the fields on which you want to apply the filter.
+You can pass filter values in a list for each filter field.
+* While filtering any dimension or measuregroup using attribute of time dimension, we must provide two values in the filter value list. (Start time, End time)
+
+ex:
+	filters = {'filter_field_1':['filter_value1','filter_value2','filter_value3'],'filter_field_2':['filter_value1','filter_value2']}
+
+When you apply filter on a field in a measuregroup where it's grained at, you can apply the filter at any level of hierarchy 
+
+ex:
+	data = khub.get_measuregrp('RetailSalesMonthly',filters = {'Year':['2020','2021'],'Continent':["Europe","North America"]})
+	In the method call above, we are appling filter in the "RetailSalesMonthly" measure group at Contient and Year level.
+	Although the measure group is grained at month and country level, plateform API can handle this API call and return a dataframe filtered on year and continent.
+
+
+
+ex:
+	data = khub.get_catalog(filters = {'ContentScript':["Google Mobility"]})
+	This is a local filter aplied to the get_catalog method and it will give us a dataframe containing data where ContentScript field is "Google Mobility"
+	
+	data = khub.get_measuregrp('RetailSalesMonthly',filters = {'Year':['2018','2022'],'Continent':["Europe","North America"]})
+	This is a local filter applied to get_measuregrp method. It will filter data from the measure group "RetailSalesMonthly" and return a Dataframe containing data from 2018 to 2022 in Europe and North America.
+	
+	data = khub.get_dim('Geo',filters ={'Continent':["Asia"]})
+	This is a local filter applied to get_dim method and it will return a dataframe with a flattend list of geo dimension hierarchy containing data for the continent of Asia. 
+	It will send api request to server in the format bellow - 
+		{Web api url}/Geo?size=100000&filters=[{"AttributeName" :"Continent","Values":["Asia"]}]
+	
+	
+You can also select coloumns that you want in the resultent DataFrame instead of all the coloumns in that Measuregroup by passing it on cols parameter
+ex:	
+	data = khub.get_measuregrp('RetailSalesMonthly',cols = ["Month","Country","AdvanceSalesTotalPercChangeNSA","AdvanceSalesTotalPercChangeSA"]})
+	Here in the DataFrame data only columns mentioned in the cols parameter will be present.
+	
+	
+
+	
+	
+CACHE
+---------------------------------------------
+
+Library keeps a cache file for every request and returns result from the cache file if the same request is made 
+within 24 hours. 
+
+If the library is running on the tenant it will store the cache file on the cloud, if it's running on local machine,
+it will store the cache file in the same folder where it's running.
+
+we need to pass the cache location while creating the khub object if it's running on tenant.
+	
+	khub = o9knowledgehub.o9KnowledgeHub('ApiKey vxhdfntu.uhvf1gegd5qzfdfdfswqidzs','s3://shPxeDczzH_rYcWpURBdZ6GQCMGLRhmAzH1ojwAsyaAAoU31234ff43w1sAZjqueBO6X7Ft6vRmbPkkazSQ2')
+
+we can get the cache location URL from khub object using method get_cache_loc
+
+	CACHE_LOCATION = khub.get_cache_loc()
+	
+If you want you can switch off the cache by passign parameter caching = False in the methods
+
+ex:
+	data = khub.get_catalog(caching=False)
+	
+TEST CASE:
+-------------------------------------------------
+
+1. Plot a graph to show Weather Forecast data for Detroit,Michigan
+
+ - 	Here to get the Weather forecast data for Detroit Michigan we need to apply filter on 'WeatherForecastDaily' measuregroup.
+	But since we don't know how city name for Detroit Michigan is stored in that measure group, we need to find out city names 
+	in the measuregroup 'ForecastLocationsList'.
+	
+	Added a global filter on khub object for country "USA" and Year 2021 to 2022
+	
+	Calling get_measuregrp to fetch data from "ForecastLocationsList" with global filters
+		FcstCity = khub.get_measuregrp('ForecastLocationsList')
+		
+	FcstCity is a DataFrame containg Forecast city information of cities withing "USA"
+	
+			Version Name	City	ForecastLocationLat	ForecastLocationLong
+		0	CurrentWorkingView	Akutan : AK Aleutians East Borough	54.133613	-165.775386
+		1	CurrentWorkingView	Cold Bay : AK Aleutians East Borough	55.206262	-162.717422
+		2	CurrentWorkingView	False Pass : AK Aleutians East Borough	54.854801	-163.414173
+		3	CurrentWorkingView	King Cove : AK Aleutians East Borough	55.059387	-162.313051
+		4	CurrentWorkingView	Sand Point : AK Aleutians East Borough	55.340469	-160.498582
+	
+	We can further filter the Dataframe to look for cities whose name starts with Detroit
+		FcstCity.loc[FcstCity['City'].str.startswith('Detroit', na=False)]
+		
+					Version Name	City	ForecastLocationLat	ForecastLocationLong
+		535	CurrentWorkingView	Detroit : AL Lamar County	34.028161	-88.170037
+		11397	CurrentWorkingView	Detroit : ME Somerset County	44.792782	-69.296015
+		12360	CurrentWorkingView	Detroit : MI Wayne County	42.331427	-83.045754
+		12410	CurrentWorkingView	Detroit Lakes : MN Becker County	46.817181	-95.845325
+		21456	CurrentWorkingView	Detroit : OR Marion County	44.734011	-122.149798
+		25916	CurrentWorkingView	Detroit : TX Red River County	33.661497	-95.266617
+		
+		this shows all the cities in USA whose name starts with Detroit
+		
+		from the above DataFrame we can figure out that Detroit, Michigan = Detroit : MI Wayne County
+		
+	Now we can bring data from 'WeatherForecastDaily' and apply filter city  = Detroit : MI Wayne County
+		data = khub.get_measuregrp('WeatherForecastDaily',filters={'City':["Detroit : MI Wayne County"]})
+		
+			Location	Day	Version Name	City	HumidityFcst	PrecipitationFcst	SnowFcst	AvgTempFcstRaw	AvgTempFcst	MaxTempFcstRaw	MaxTempFcst	MinTempFcstRaw	MinTempFcst	WindSpeedFcst
+		0	Detroit : MI Wayne County	2021-10-26	CurrentWorkingView	Detroit : MI Wayne County	78	0.0	0.0	7.61	6.896647	7.94	10.505074	5.69	4.850684	8.75
+		1	Detroit : MI Wayne County	2021-10-27	CurrentWorkingView	Detroit : MI Wayne County	85	0.0	0.0	10.97	10.256647	10.97	13.535074	6.47	5.630684	5.43
+		2	Detroit : MI Wayne County	2021-10-28	CurrentWorkingView	Detroit : MI Wayne County	70	0.0	0.0	13.99	13.276646	13.99	16.555073	9.69	8.850684	5.88
+		3	Detroit : MI Wayne County	2021-10-29	CurrentWorkingView	Detroit : MI Wayne County	90	0.0	0.0	12.95	12.236646	12.95	15.515073	11.25	10.410684	6.39
+		4	Detroit : MI Wayne County	2021-10-30	CurrentWorkingView	Detroit : MI Wayne County	88	0.0	0.0	9.87	9.156646	11.25	13.815073	8.71	7.870684	7.03
+		
+	We can plot this data on a graph using following code snippet
+		
+		
+		import matplotlib.pyplot as plt
+		from matplotlib.pyplot import figure
+		figure(figsize=(15, 6), dpi=80)
+		ax = plt.gca() 
+
+		data.plot(kind = 'line',x = 'Day', y = 'MaxTempFcst',color = 'red',ax = ax)
+		data.plot(kind = 'line',x = 'Day',y = 'AvgTempFcst',color = 'blue',ax = ax)
+		data.plot(kind = 'line',x = 'Day', y = 'MinTempFcst',color = 'yellow',ax = ax)
+		data.plot(kind = 'line',x = 'Day',y = 'HumidityFcst',color = 'green',ax = ax)
+		plt.title('Weather Forecast Detroit MI')
+		plt.show()
+		
+		
+		
+		
+IMPORTANT LINKS:
+---------------------------
+
+Knowledge Hub APIs : https://o9-knowledge.github.io/Hub/
